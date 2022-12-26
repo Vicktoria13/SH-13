@@ -29,6 +29,8 @@ int fsmServer=0; // variable d'etat du serveur
 
 int deck[13]={0,1,2,3,4,5,6,7,8,9,10,11,12}; // packet de cartes. Il faudra les mélanger apres
 
+int deck_original[13]={0,1,2,3,4,5,6,7,8,9,10,11,12};
+
 int tableCartes[4][8]; // 4 lignes de 8 colonnes qui represente la matrice du jeu en cours
 
 char *nomcartes[]=
@@ -37,14 +39,32 @@ char *nomcartes[]=
   "inspector Hopkins", "Sherlock Holmes", "John Watson", "Mycroft Holmes",
   "Mrs. Hudson", "Mary Morstan", "James Moriarty"}; // nom des méchants
 
+char *nom_objets[]=
+{"pipe","ampoule","poing","soleil","livre","bracelet","oeil","tete de mort"}; // nom des méchants
 
-int joueurCourant; // joueur courant : le 1er connécté est le 1er a jouer
+
+int joueurCourant=0; // joueur courant : le 1er connécté est le 1er a jouer
 
 void error(const char *msg)
 {
     perror(msg);
     exit(1);
 }
+
+
+void current_player(){
+	/**
+	 * @brief incrémente le joueur courant
+	 * 
+	 */
+	if (joueurCourant==3){
+		joueurCourant=0;
+	}
+	else{
+		joueurCourant++;
+	}
+}
+
 
 // apres ça, le deck sera mélangé
 void melangerDeck()
@@ -167,10 +187,14 @@ void printDeck()
 	for (i = 0; i < 4; i++)
 	{
 		for (j = 0; j < 8; j++)
-			printf("%2.2d ", tableCartes[i][j]);
+			printf("%d ", tableCartes[i][j]);
 		puts("");
 	}
 }
+
+
+
+
 
 void printClients()
 {
@@ -228,6 +252,22 @@ void sendMessageToClient(char *clientip,int clientport,char *mess)
 }
 
 
+void envoie_ligne_du_tableau(int id){
+	/**
+	 * @brief envoie la ligne du tableau du joueur id sous la forme 
+	 * V ligne colonne valeur
+	 * 
+	 */
+	printf("envoie ligne tableau %d\n",id);
+	char reply[100];
+	for (int i=0;i<8;i++){
+
+		sprintf(reply,"V %d %d %d",id,i,tableCartes[id][i]);
+		printf("reply: %s\n",reply);
+		sendMessageToClient(tcpClients[id].ipAddress,tcpClients[id].port,reply);
+	}
+}
+
 // envoie message a tous les clients
 void broadcastMessage(char *mess)
 {
@@ -237,6 +277,47 @@ void broadcastMessage(char *mess)
 				sendMessageToClient(tcpClients[i].ipAddress,
 									tcpClients[i].port,
 									mess);
+}
+
+
+void demande_collective_pour_un_objet(int de_la_part_de_id, int numero_guilty_object){
+	/**
+	 * @brief demande a tous les joueurs de dire si OUI ou NON (=0) ils ont l'objet et envoie de la réponse a tous le monde
+	 * 
+	 * @param de_la_part_de_id 
+	 * @param numero_guilty_object
+	 */
+ 
+	printf("demande collective de la part de %d pour un objet %d \n",de_la_part_de_id,numero_guilty_object);
+	char reply[255];
+	for (int i=0;i<4;i++){
+		if (i!=de_la_part_de_id){
+			if (tableCartes[i][numero_guilty_object]==0){
+				//Ne possede pas l'objet
+				sprintf(reply, "V %d %d %d", i, numero_guilty_object, 0);
+			}
+			else {
+				//Possede l'objet
+				sprintf(reply, "V %d %d %d", i, numero_guilty_object, 100);
+			}
+			broadcastMessage(reply);
+	}
+}
+}
+
+
+void demande_individuelle_pour_un_objet(int de_la_part_de_id, int numero_objet, int joueur_asked){
+	/**
+	 * @brief demande a un joueur de dire cb a t-il d'objet et envoie de la réponse a tous le monde
+	 * @param de_la_part_de_id
+	 * @param numero_objet
+	 * @param joueur_asked
+	 */
+	 printf("demande individuelle de la part de %d a %d pour un objet : %d \n",de_la_part_de_id,joueur_asked,numero_objet);
+     char reply[255];
+	 sprintf(reply, "V %d %d %d", joueur_asked, numero_objet,  tableCartes[joueur_asked][numero_objet]);
+	 broadcastMessage(reply);
+
 }
 
 int main(int argc, char *argv[])
@@ -287,6 +368,8 @@ int main(int argc, char *argv[])
 	printDeck();
 
 	joueurCourant = 0;
+	int indice_carte_a_deviner=deck[12];
+	printf("la carte a deviner est la numero %d : %s\n",indice_carte_a_deviner,nomcartes[indice_carte_a_deviner]);
 
 	for (i = 0; i < 4; i++)
 	{
@@ -363,9 +446,7 @@ int main(int argc, char *argv[])
 						sprintf(reply,"D %d %d %d",deck[0],deck[1],deck[2]);
 						sendMessageToClient(tcpClients[0].ipAddress,tcpClients[0].port,reply);
 
-						sprintf(reply,"V %d %d %d %d %d %d %d %d",tableCartes[0][0],tableCartes[0][1],tableCartes[0][2],tableCartes[0][3],tableCartes[0][4],tableCartes[0][5],tableCartes[0][6],tableCartes[0][7]);
-						sendMessageToClient(tcpClients[0].ipAddress,tcpClients[0].port,reply);
-						cartes_distribuees += 3;
+						envoie_ligne_du_tableau(0);
 						
 
 						/**************************JOUEUR 1 ******************************************************************/
@@ -376,8 +457,7 @@ int main(int argc, char *argv[])
 						sprintf(reply,"D %d %d %d",deck[3],deck[4],deck[5]);
 						sendMessageToClient(tcpClients[1].ipAddress,tcpClients[1].port,reply);
 
-						sprintf(reply,"V %d %d %d %d %d %d %d %d",tableCartes[1][0],tableCartes[1][1],tableCartes[1][2],tableCartes[1][3],tableCartes[1][4],tableCartes[1][5],tableCartes[1][6],tableCartes[1][7]);
-						sendMessageToClient(tcpClients[1].ipAddress,tcpClients[1].port,reply);
+						envoie_ligne_du_tableau(1);
 						cartes_distribuees += 3;
 
 
@@ -387,8 +467,7 @@ int main(int argc, char *argv[])
 						sprintf(reply,"D %d %d %d",deck[6],deck[7],deck[8]);
 						sendMessageToClient(tcpClients[2].ipAddress,tcpClients[2].port,reply);
 
-						sprintf(reply,"V %d %d %d %d %d %d %d %d",tableCartes[2][0],tableCartes[2][1],tableCartes[2][2],tableCartes[2][3],tableCartes[2][4],tableCartes[2][5],tableCartes[2][6],tableCartes[2][7]);
-						sendMessageToClient(tcpClients[2].ipAddress,tcpClients[2].port,reply);
+						envoie_ligne_du_tableau(2);
 						cartes_distribuees += 3;
 
 
@@ -398,13 +477,12 @@ int main(int argc, char *argv[])
 						sprintf(reply,"D %d %d %d",deck[9],deck[10],deck[11]);
 						sendMessageToClient(tcpClients[3].ipAddress,tcpClients[3].port,reply);
 
-						sprintf(reply,"V %d %d %d %d %d %d %d %d",tableCartes[3][0],tableCartes[3][1],tableCartes[3][2],tableCartes[3][3],tableCartes[3][4],tableCartes[3][5],tableCartes[3][6],tableCartes[3][7]);
-						sendMessageToClient(tcpClients[3].ipAddress,tcpClients[3].port,reply);
+						envoie_ligne_du_tableau(3);
 						cartes_distribuees += 3;
 
 
-						// On envoie enfin un message a tout le monde pour definir qui est le joueur courant=0
-						sprintf(reply,"M %d",0);
+						// On envoie enfin un message a tout le monde pour definir qui est le joueur courant
+						sprintf(reply,"M %d",joueurCourant);
 						broadcastMessage(reply);
 
 						fsmServer = 1;
@@ -417,24 +495,58 @@ int main(int argc, char *argv[])
 				else if (fsmServer == 1) // cas ou tout le monde est connecté : donc message de jeu
 
 				{
+					int guilty_number;
+					int id_from;
+					int obj_asked;
 					switch (buffer[0])
 					{
 						case 'G':
 						// RAJOUTER DU CODE ICI
-						// alors un joueur a mené une accusation
+						// alors un joueur a mené une accusation il faut donc vérifier si c'est juste ou pas
+			                
+							sscanf(buffer,"G %d %d", &id_from, &guilty_number); 
+							printf("%s accuse le personnage numero %d du deck, soit %s\n" , tcpClients[id_from].name,guilty_number,nomcartes[guilty_number]);
+							if (indice_carte_a_deviner == guilty_number)
+							{
+								printf("\n\n\n\n  Le joueur %s a gagné !\n\n\n\n\n ", tcpClients[id_from].name);
+								
+								
+							}
+							else
+							{
+								printf("\n\n\n\n %s a eu FAUX \n\n\n\n ", tcpClients[id_from].name);
+							}
 
 						
-					break;
-					case 'O':
-					// RAJOUTER DU CODE ICI
-					break;
-					case 'S':
-					// RAJOUTER DU CODE ICI
-					break;
-					
-					default:
-					break;
+							break;
+
+							/****************************/
+
+							case 'O':
+								sscanf(buffer,"O %d %d", &id_from, &guilty_number); 
+								printf("%s demande a chacun des joueurs combien ils ont ils de %s\n" , tcpClients[id_from].name,nom_objets[guilty_number]);
+								demande_collective_pour_un_objet(id_from, guilty_number);
+								break;
+
+
+							case 'S':
+							// on recupere l'iD, le joueur et l'objet demandé
+								sscanf(buffer,"S %d %d %d", &id_from, &guilty_number,&obj_asked); 
+								printf("%s demande a %s combien a t-il (elle) de %s\n" , tcpClients[id_from].name,tcpClients[guilty_number].name, nom_objets[obj_asked]);
+								demande_individuelle_pour_un_objet( id_from,obj_asked,guilty_number);
+
+
+								break;
+
+							default:
+								break;
 					}
+
+					/* Dans tous les cas, on change de joueur au tour suivant */
+					current_player();
+					sprintf(reply,"M %d",joueurCourant);
+					broadcastMessage(reply);
+
 				}
 
 

@@ -64,6 +64,17 @@ void print_names_gamers(){
 	}
 }
 
+void printDeck()
+{
+	int i, j;
+
+	for (i = 0; i < 4; i++)
+	{
+		for (j = 0; j < 8; j++)
+			printf("%d ", tableCartes[i][j]);
+		puts("");
+	}
+}
 
 
 void *fn_serveur_tcp(void *arg) // thread serveur du client
@@ -174,17 +185,17 @@ void tour_de_jeu(){
 }
 
 
-void current_player(){
+
+
+void remplissage_table_cartes(int lig, int col, int val){
 	/**
-	 * @brief incrémente le joueur courant
+	 * @brief rempli la table des cartes
 	 * 
+	 * @param lig 
+	 * @param col 
+	 * @param val 
 	 */
-	if (joueurCourant==4){
-		joueurCourant=0;
-	}
-	else{
-		joueurCourant++;
-	}
+	tableCartes[lig][col]=val;
 }
 
 
@@ -388,30 +399,48 @@ int main(int argc, char ** argv)
 
 						else if ((mx >= 500) && (mx < 700) && (my >= 350) && (my < 450) && (goEnabled == 1))
 						{	
-							//APPUI SUR LE BOUTON GO
-							goEnabled = 0;
-
-							printf("go! joueur =%d objet =%d guilt=%d\n", joueurSel, objetSel, guiltSel);
+							//APPUI SUR LE BOUTON GO : ainsi le joueur a joué donc il faut passer au joueur suivant
 							
+
+							printf("GO PRESSED ! joueur = %d objet = %d guilt= %d\n", joueurSel, objetSel, guiltSel);
+							
+							
+							/******** COUPABLE *************************************************************************/
+
 							if (guiltSel != -1)
 							{
 								// sendBuffer sera alors G 0 1
 								sprintf(sendBuffer, "G %d %d", gId, guiltSel);
-
+								sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
 								// RAJOUTER DU CODE ICI
 							}
+
+							/********  OBJET *************************************************************************/
+
+
 							else if ((objetSel != -1) && (joueurSel == -1))
 							{
 								sprintf(sendBuffer, "O %d %d", gId, objetSel);
+								sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
 
 								// RAJOUTER DU CODE ICI
+
 							}
+
+							/********JOUEUR + OBJET *************************************************************************/
+
 							else if ((objetSel != -1) && (joueurSel != -1))
 							{
+								
 								sprintf(sendBuffer, "S %d %d %d", gId, joueurSel, objetSel);
+								sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
 
 								// RAJOUTER DU CODE ICI
 							}
+
+
+							sprintf(sendBuffer, "N %d", gId);
+							
 						}
 
 
@@ -485,10 +514,13 @@ int main(int argc, char ** argv)
 							break;
 
 
-						// Message 'V' : le joueur recoit une valeur de tableCartes
+						// Message 'V' : le joueur recoit une mise a jour de TableCartes
 						case 'V':
-							// RAJOUTER DU CODE ICI
-							sscanf(gbuffer,"V %d  %d %d %d %d %d %d %d", tableCartes[gId], tableCartes[gId] +1, tableCartes[gId] +2, tableCartes[gId] +3, tableCartes[gId] +4, tableCartes[gId] +5, tableCartes[gId] +6, tableCartes[gId] +7);
+							int ligne;
+							int colonne;
+							int valeur;
+							sscanf(gbuffer,"V %d %d %d", &ligne, &colonne, &valeur);
+							remplissage_table_cartes(ligne, colonne, valeur);
 							break;
 		}
 

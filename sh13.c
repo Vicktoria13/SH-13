@@ -21,24 +21,39 @@ char gName[256]; // nom joueur courant
 
 char gNames[4][256]; // les 4 noms des joeurs
 
-int gId;
+int gId; //affecté par le serveur principal
+
 int joueurSel;
 int objetSel;
 int guiltSel;
-int guiltGuess[13];
+
+int guiltGuess[13]; // 13 cartes de guilt
 int tableCartes[4][8];
 int b[3];
+
+
 int goEnabled; //flag pour activer le bouton go
 int connectEnabled;
 
 char *nbobjets[]={"5","5","5","5","4","3","3","3"};
+
 char *nbnoms[]={"Sebastian Moran", "irene Adler", "inspector Lestrade",
   "inspector Gregson", "inspector Baynes", "inspector Bradstreet",
   "inspector Hopkins", "Sherlock Holmes", "John Watson", "Mycroft Holmes",
   "Mrs. Hudson", "Mary Morstan", "James Moriarty"};
 
+int joueurCourant=0; // joueur courant
+
 /*----------------VARIABLE FLAG ENTRE LES THREADS*/
-volatile int synchro;
+
+
+/*--------------------------------------------------------------------*/
+
+
+volatile int synchro=1;
+
+
+/*--------------------------------------------------------------------*/
 
 
 
@@ -48,8 +63,15 @@ void print_names_gamers(){
 		printf("nom joueur %d : %s\n",i,gNames[i]);
 	}
 }
+
+
+
 void *fn_serveur_tcp(void *arg) // thread serveur du client
 {
+		//permet de recevoir les messages du serveur principal tout en continuant a jouer et maintenir l'affichage graphique
+		// Cette fonction tourne en permanence et attend les messages du serveur principal
+
+
         int sockfd, newsockfd, portno;
         socklen_t clilen;
         struct sockaddr_in serv_addr, cli_addr;
@@ -91,9 +113,9 @@ void *fn_serveur_tcp(void *arg) // thread serveur du client
                         printf("read error\n");
                         exit(1);
                 }
-                //printf("%s",gbuffer);
 
-                synchro=1;
+                synchro=1; // syncrho passe a 1 pour dire que le client a recu un message du serveur principal
+
 				//boucle infinie : le serveur clientn'écoutera pas tant que synchro est a 1
 
                 while (synchro); // ailleurs, un autre thread va le remettre a  0 : il s'agit d'une variable globale donc partagé par les autres process
@@ -136,6 +158,36 @@ void sendMessageToServer(char *ipAddress, int portno, char *mess)
     close(sockfd);
 }
 
+
+
+void tour_de_jeu(){
+	/**
+	 * @brief donne le flag pour activer le bouton go
+	 * 
+	 */
+	if (joueurCourant==gId){
+		goEnabled=1;
+	}
+	else{
+		goEnabled=0;
+	}
+}
+
+
+void current_player(){
+	/**
+	 * @brief incrémente le joueur courant
+	 * 
+	 */
+	if (joueurCourant==4){
+		joueurCourant=0;
+	}
+	else{
+		joueurCourant++;
+	}
+}
+
+
 int main(int argc, char ** argv)
 {
 	int ret;
@@ -150,7 +202,7 @@ int main(int argc, char ** argv)
 
         if (argc<6)
         {		// dans l'ordre : on reçoit le serveur principal le port le serveur client le port et le nom
-                // ./sh13 localhost 32000 localhost 32001 sh13
+                // ./sh13 localhost 32000 localhost 32001 nom
 				printf("<app> <Main server ip address> <Main server port> <Client ip address> <Client port> <player name>\n");
                 exit(1);
         }
@@ -173,8 +225,10 @@ int main(int argc, char ** argv)
 
     SDL_Init(SDL_INIT_VIDEO);
 	TTF_Init();
- 
-    SDL_Window * window = SDL_CreateWindow("SDL2 SH13",
+	char Nom_fenetre[400];
+	sprintf(Nom_fenetre,"SH13 %s",gName);
+
+    SDL_Window * window = SDL_CreateWindow(Nom_fenetre,
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1024, 768, 0);
  
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
@@ -231,8 +285,8 @@ int main(int argc, char ** argv)
 		for (j=0;j<8;j++)
 			tableCartes[i][j]=-1;
 
-	goEnabled=0;
-	connectEnabled=1;
+	goEnabled=0; // au debut, on ne peut pas jouer
+	connectEnabled=1; // au debut, on peut se connecter
 
     SDL_Texture *texture_deck[13],*texture_gobutton,*texture_connectbutton,*texture_objet[8];
 
@@ -251,7 +305,7 @@ int main(int argc, char ** argv)
    printf ("Creation du thread serveur tcp !\n");
    //avant la creation du thread
    synchro=0;
-   // on lance en // me thread serveur tcp qui ne servira que pour les messages a ecrire au serveur gloable ou recevoir
+   // on lance en // le thread serveur tcp qui ne servira que pour les messages a ecrire au serveur gloable ou recevoir
 
    ret = pthread_create ( & thread_serveur_tcp_id, NULL, fn_serveur_tcp, NULL);
 
@@ -259,139 +313,189 @@ int main(int argc, char ** argv)
 	//boucle infinie d'affichage
 
 	// comme il s'agit d'une boucle infinie d'affichage, on a l'assurance que 
-	// le thread crée auparavant ne s'arretera pas avant le programme principale
+	// le thread crée auparavant ne s'arretera pas avan flag pour permettre la cont le programme principale
 	//donc pas beosoin de join
 
     while (!quit)
     {
-	if (SDL_PollEvent(&event))
-	{
-		//printf("un event\n");
+
+		if (SDL_PollEvent(&event)) // si un event est arrivé
+		{
         	switch (event.type)
         	{
             		case SDL_QUIT:
                 		quit = 1;
                 		break;
-			case  SDL_MOUSEBUTTONDOWN:
+
+					case  SDL_MOUSEBUTTONDOWN: // clic de souris
+						SDL_GetMouseState(&mx, &my); // récupère les coordonnées de la souris
+
+						if ((mx < 200) && (my < 50) && (connectEnabled == 1))
+						{ // j'ai cliqué sur le bouton CONNECT
+
+							sprintf(sendBuffer, "C %s %d %s", gClientIpAddress, gClientPort, gName);
+							// sendBuffer sera alors C localhost 32001 Alice
+							sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
 
 
-				SDL_GetMouseState( &mx, &my );
-				//printf("mx=%d my=%d\n",mx,my);
-				if ((mx<200) && (my<50) && (connectEnabled==1))
-				{	//j'ai cliqué sur le bouton CONNECT
-
-					sprintf(sendBuffer,"C %s %d %s",gClientIpAddress,gClientPort,gName);
-					sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
+							connectEnabled = 0; // On ne peut plus se connecter une fois connecté
+						}
 
 
-					// sendBuffer sera alors C gClientIpAddress gClientPort gName
+						/*******************************************************************************************************************/
+						
 
-					connectEnabled=0; //flag pour permettre la con
-				}
-				else if ((mx>=0) && (mx<200) && (my>=90) && (my<330))
-				{
-					joueurSel=(my-90)/60;
-					guiltSel=-1;
-				}
-				else if ((mx>=200) && (mx<680) && (my>=0) && (my<90))
-				{
-					objetSel=(mx-200)/60;
-					guiltSel=-1;
-				}
-				else if ((mx>=100) && (mx<250) && (my>=350) && (my<740))
-				{
-					joueurSel=-1;
-					objetSel=-1;
-					guiltSel=(my-350)/30;
-				}
-				else if ((mx>=250) && (mx<300) && (my>=350) && (my<740))
-				{
-					int ind=(my-350)/30;
-					guiltGuess[ind]=1-guiltGuess[ind];
-				}
-				else if ((mx>=500) && (mx<700) && (my>=350) && (my<450) && (goEnabled==1))
-				{
-					printf("go! joueur=%d objet=%d guilt=%d\n",joueurSel, objetSel, guiltSel);
-					if (guiltSel!=-1)
-					{
-						sprintf(sendBuffer,"G %d %d",gId, guiltSel);
+						else if ((mx >= 0) && (mx < 200) && (my >= 90) && (my < 330)) // clic sur un joueur
+						{	
+							printf("Vous avez cliqué sur un joueur \n");
+							joueurSel = (my - 90) / 60;
+							guiltSel = -1;
+						}
 
-					// RAJOUTER DU CODE ICI
+						/*******************************************************************************************************************/
+						/* Appui sur un objet*/
+
+						else if ((mx >= 200) && (mx < 680) && (my >= 0) && (my < 90))
+						{
+							printf("Vous avez cliqué sur un objet \n");
+							objetSel = (mx - 200) / 60;
+							guiltSel = -1;
+						}
+
+						/*******************************************************************************************************************/
+
+
+						else if ((mx >= 100) && (mx < 250) && (my >= 350) && (my < 740))
+						{
+							printf("Vous avez cliqué sur un coupable \n");
+
+							joueurSel = -1;
+							objetSel = -1;
+							guiltSel = (my - 350) / 30; // flag pour savoir si on a selectionné un coupable
+						}
+
+						/*******************************************************************************************************************/
+
+
+						else if ((mx >= 250) && (mx < 300) && (my >= 350) && (my < 740))
+						{
+							int ind = (my - 350) / 30;
+							guiltGuess[ind] = 1 - guiltGuess[ind];
+						}
+
+						/*******************************************************************************************************************/
+
+
+						else if ((mx >= 500) && (mx < 700) && (my >= 350) && (my < 450) && (goEnabled == 1))
+						{	
+							//APPUI SUR LE BOUTON GO
+							goEnabled = 0;
+
+							printf("go! joueur =%d objet =%d guilt=%d\n", joueurSel, objetSel, guiltSel);
+							
+							if (guiltSel != -1)
+							{
+								// sendBuffer sera alors G 0 1
+								sprintf(sendBuffer, "G %d %d", gId, guiltSel);
+
+								// RAJOUTER DU CODE ICI
+							}
+							else if ((objetSel != -1) && (joueurSel == -1))
+							{
+								sprintf(sendBuffer, "O %d %d", gId, objetSel);
+
+								// RAJOUTER DU CODE ICI
+							}
+							else if ((objetSel != -1) && (joueurSel != -1))
+							{
+								sprintf(sendBuffer, "S %d %d %d", gId, joueurSel, objetSel);
+
+								// RAJOUTER DU CODE ICI
+							}
+						}
+
+
+						/*******************************************************************************************************************/
+
+
+						else
+						{
+							joueurSel = -1;
+							objetSel = -1;
+							guiltSel = -1;
+						}
+
+
+						break;
+
+
+					case SDL_MOUSEMOTION: // déplacement de la souris
+
+						SDL_GetMouseState(&mx, &my);
+						break;
 
 					}
-					else if ((objetSel!=-1) && (joueurSel==-1))
-					{
-						sprintf(sendBuffer,"O %d %d",gId, objetSel);
+		}
 
-					// RAJOUTER DU CODE ICI
-
-					}
-					else if ((objetSel!=-1) && (joueurSel!=-1))
-					{
-						sprintf(sendBuffer,"S %d %d %d",gId, joueurSel,objetSel);
-
-					// RAJOUTER DU CODE ICI
-
-					}
-				}
-				else
+		if (synchro == 1) // le serveur global a envoyé un message
 				{
-					joueurSel=-1;
-					objetSel=-1;
-					guiltSel=-1;
-				}
-				break;
-			case  SDL_MOUSEMOTION:
-				SDL_GetMouseState( &mx, &my );
-				break;
-        	}
+					printf("Message reçu du serveur principal : %s \n", gbuffer); // ecris ce que le serveur global a envoyé
+
+					switch (gbuffer[0])
+					{
+						// Message 'I' : le joueur recoit son Id
+						case 'I':
+							// dans ce cas, nous avons reçu un message du serveur global commençant avec I, commme "I 3". Nous voulons extraire le 3 :
+
+							sscanf(gbuffer + 2, "%d", &gId);
+							printf("TON ID CLIENT EST %d\n", gId);
+							break;
+
+						// Message 'L' : le joueur recoit la liste des joueurs
+
+						case 'L': // liste des joueurs connecté // L Alice - - -
+							// On recevra une chaine de char similaire a "L Alice Bob - -"
+							sscanf(gbuffer + 2, "%s %s %s %s", gNames[0], gNames[1], gNames[2], gNames[3]); // On stocke les noms des joueurs dans le tableau gNames
+							print_names_gamers();
+							// affecter le tableau gNames
+
+							break;
+						
+						// Message 'D' : le joueur recoit ses trois cartes
+
+						case 'D': // deal voici tes 3 cartes // j'envoie au client les 3 cartes piochées au hasard
+							sscanf(gbuffer,"D %d %d %d", b, b+1, b+2); 
+
+							break;
+
+						// Message 'M' : le joueur recoit le n° du joueur courant
+						// Cela permet d'affecter goEnabled pour autoriser l'affichage du bouton go
+						case 'M': // le serveur global defini le joueur courant : si on reçoit le M, on regarde si joueur courant
+						    int firstPlayer;
+							sscanf(gbuffer,"M %d", &firstPlayer); 
+							if (firstPlayer == gId) // si c'est notre tour
+							{
+								goEnabled = 1;
+							}
+							else
+							{
+								goEnabled = 0;
+							}
+
+							break;
+
+
+						// Message 'V' : le joueur recoit une valeur de tableCartes
+						case 'V':
+							// RAJOUTER DU CODE ICI
+							sscanf(gbuffer,"V %d  %d %d %d %d %d %d %d", tableCartes[gId], tableCartes[gId] +1, tableCartes[gId] +2, tableCartes[gId] +3, tableCartes[gId] +4, tableCartes[gId] +5, tableCartes[gId] +6, tableCartes[gId] +7);
+							break;
+		}
+
+		synchro=0; // le reception est terminé on peut recevoir un nouveau message donc on remet synchro a 0
 	}
 
-        if (synchro==1) // le serveur global a répondu a envoyé
-        {
-                printf("consomme |%s|\n",gbuffer); // ecris ce que le serveur global a envoyé
-		switch (gbuffer[0]) 
-		{
-			// Message 'I' : le joueur recoit son Id
-			case 'I':
-				// dans ce cas, nous avons reçu un message du serveur globale commençant avec I, commme "I 3". Nous voulons extraire le 3 :
-				sscanf(gbuffer+2, "%d", &gId);
-				printf("TON ID CLIENT EST %d\n", gId);
-				// RAJOUTER DU CODE ICI
-
-				break;
-			// Message 'L' : le joueur recoit la liste des joueurs
-
-			case 'L': //liste des joueurs connecté // L Alice - - -
-				// RAJOUTER DU CODE ICI
-				// On recevra une chaine de char similaire a "L Alice Bob - -"
-				sscanf(gbuffer+2, "%s %s %s %s", gNames[0],gNames[1],gNames[2],gNames[3]); // On stocke les noms des joueurs dans le tableau gNames
-				print_names_gamers();
-				// affecter le tableau gNames
-
-				break;
-			// Message 'D' : le joueur recoit ses trois cartes
-
-			case 'D': // deal voici tes 3 cartes // j'envoie au client les 3 cartes piochées au hasard
-				// RAJOUTER DU CODE ICI
-
-				break;
-			// Message 'M' : le joueur recoit le n° du joueur courant
-			// Cela permet d'affecter goEnabled pour autoriser l'affichage du bouton go
-			case 'M': // le serveur global defini le joueur courant : si on reçoit le M, on regarde si joueur courant
-				// RAJOUTER DU CODE ICI
-
-				break;
-			// Message 'V' : le joueur recoit une valeur de tableCartes
-			case 'V':
-				// RAJOUTER DU CODE ICI
-
-				break;
-		}
-		synchro=0;
-        }
-
-        SDL_Rect dstrect_grille = { 512-250, 10, 500, 350 };
+		SDL_Rect dstrect_grille = { 512-250, 10, 500, 350 };
         SDL_Rect dstrect_image = { 0, 0, 500, 330 };
         SDL_Rect dstrect_image1 = { 0, 340, 250, 330/2 };
 
@@ -677,6 +781,8 @@ int main(int argc, char ** argv)
 	SDL_RenderDrawLine(renderer, 250,350,250,740);
 	SDL_RenderDrawLine(renderer, 300,350,300,740);
 
+
+	// Afficher les cartes
         //SDL_RenderCopy(renderer, texture_grille, NULL, &dstrect_grille);
 	if (b[0]!=-1)
 	{

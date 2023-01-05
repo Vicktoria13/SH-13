@@ -271,7 +271,7 @@ int main(int argc, char ** argv)
 	objet[6] = IMG_Load("SH13_oeil_120x120.png");
 	objet[7] = IMG_Load("SH13_crane_120x120.png");
 
-	gobutton = IMG_Load("gobutton.png");
+	gobutton = IMG_Load("play.png");
 	connectbutton = IMG_Load("connectbutton.png");
 
 	// au debut, que des noms vides
@@ -358,7 +358,6 @@ int main(int argc, char ** argv)
 
 						else if ((mx >= 0) && (mx < 200) && (my >= 90) && (my < 330)) // clic sur un joueur
 						{	
-							printf("Vous avez cliqué sur un joueur \n");
 							joueurSel = (my - 90) / 60;
 							guiltSel = -1;
 						}
@@ -368,7 +367,6 @@ int main(int argc, char ** argv)
 
 						else if ((mx >= 200) && (mx < 680) && (my >= 0) && (my < 90))
 						{
-							printf("Vous avez cliqué sur un objet \n");
 							objetSel = (mx - 200) / 60;
 							guiltSel = -1;
 						}
@@ -378,7 +376,6 @@ int main(int argc, char ** argv)
 
 						else if ((mx >= 100) && (mx < 250) && (my >= 350) && (my < 740))
 						{
-							printf("Vous avez cliqué sur un coupable \n");
 
 							joueurSel = -1;
 							objetSel = -1;
@@ -431,7 +428,7 @@ int main(int argc, char ** argv)
 
 							else if ((objetSel != -1) && (joueurSel != -1))
 							{
-								
+
 								sprintf(sendBuffer, "S %d %d %d", gId, joueurSel, objetSel);
 								sendMessageToServer(gServerIpAddress, gServerPort, sendBuffer);
 
@@ -527,11 +524,11 @@ int main(int argc, char ** argv)
 		synchro=0; // le reception est terminé on peut recevoir un nouveau message donc on remet synchro a 0
 	}
 
-		SDL_Rect dstrect_grille = { 512-250, 10, 500, 350 };
-        SDL_Rect dstrect_image = { 0, 0, 500, 330 };
-        SDL_Rect dstrect_image1 = { 0, 340, 250, 330/2 };
+	SDL_Rect dstrect_grille = {512 - 250, 10, 500, 350};
+	SDL_Rect dstrect_image = {0, 0, 500, 330};
+	SDL_Rect dstrect_image1 = {0, 340, 250, 330 / 2};
 
-	SDL_SetRenderDrawColor(renderer, 255, 230, 230, 230);
+	SDL_SetRenderDrawColor(renderer, 200, 150, 150, 230);
 	SDL_Rect rect = {0, 0, 1024, 768}; 
 	SDL_RenderFillRect(renderer, &rect);
 
@@ -868,8 +865,10 @@ int main(int argc, char ** argv)
 
         SDL_RenderPresent(renderer);
     }
- 
-    SDL_DestroyTexture(texture_deck[0]);
+
+
+
+	SDL_DestroyTexture(texture_deck[0]);
     SDL_DestroyTexture(texture_deck[1]);
     SDL_FreeSurface(deck[0]);
     SDL_FreeSurface(deck[1]);

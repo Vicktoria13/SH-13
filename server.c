@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 
 #include <netdb.h>
+#include <time.h>
 #include <arpa/inet.h>
 
 
@@ -322,7 +323,7 @@ void demande_individuelle_pour_un_objet(int de_la_part_de_id, int numero_objet, 
 
 int main(int argc, char *argv[])
 {
-
+	srand(time(NULL));
 	int sockfd, newsockfd, portno;
 	socklen_t clilen;
 	char buffer[256];
@@ -501,7 +502,6 @@ int main(int argc, char *argv[])
 					switch (buffer[0])
 					{
 						case 'G':
-						// RAJOUTER DU CODE ICI
 						// alors un joueur a mené une accusation il faut donc vérifier si c'est juste ou pas
 			                
 							sscanf(buffer,"G %d %d", &id_from, &guilty_number); 
@@ -533,7 +533,7 @@ int main(int argc, char *argv[])
 							// on recupere l'iD, le joueur et l'objet demandé
 								sscanf(buffer,"S %d %d %d", &id_from, &guilty_number,&obj_asked); 
 								printf("%s demande a %s combien a t-il (elle) de %s\n" , tcpClients[id_from].name,tcpClients[guilty_number].name, nom_objets[obj_asked]);
-								demande_individuelle_pour_un_objet( id_from,obj_asked,guilty_number);
+								demande_individuelle_pour_un_objet(id_from,obj_asked,guilty_number);
 
 
 								break;
